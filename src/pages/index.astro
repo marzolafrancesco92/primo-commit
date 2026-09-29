@@ -1,17 +1,945 @@
 ---
+export const prerender = false;
 
+interface Project {
+  slug: string;
+  title: string;
+  year: number;
+  director?: string;
+  type?: string;
+  synopsis?: string;
+  poster?: string;
+  trailerUrl?: string;
+}
+
+interface Track {
+  id: string;
+  title: string;
+  mood: string;
+  instrumentation: string;
+  src: string;
+  project?: string;
+}
+
+const apiBase = import.meta.env.BACKEND_URL ?? '';
+const publicAssetRoot = '/images/projects';
+
+const assetUrl = (value?: string) => {
+  if (!value) return '';
+  if (/^(https?:)?\/\//i.test(value)) return value;
+  if (value.startsWith('/')) return value;
+  return `${publicAssetRoot}/${value}`;
+};
+
+// Public endpoint: returns published projects only.
+// CRUD belongs in /admin and should authenticate against your real backend.
+const fallbackProjects: Project[] = [
+  { slug: 'spoke', title: 'Spoke', year: 2026, director: 'Regia Bogdan Darev', type: 'Cortometraggio', poster: assetUrl('Spoke-Poster-203x300.avif') },
+  { slug: 'kid-with-a-movie-camera', title: 'Kid With a Movie Camera', year: 2026, director: 'Regia Micah Knapp', type: 'Documentario', poster: assetUrl('jsKWAMC_PosterMARZOLA-225x300.avif') },
+  { slug: 'home-court', title: 'Home Court', year: 2026, director: 'Regia Rodrigo Ernandéz, Elpida Nikou', type: 'Cortometraggio', poster: assetUrl('HOMECOURT-poster-WIP-214x300.avif') },
+  { slug: 'morphe', title: 'Morphé', year: 2026, director: 'Regia Luca Ferrara', type: 'Cortometraggio', poster: assetUrl('MORPHE-Poster-214x300.avif') },
+  { slug: 'the-old-and-the-new', title: 'The Old and the New', year: 2026, director: 'Regia Luca Ferrara', type: 'Cortometraggio', poster: assetUrl('TOATN-Poster-201x300.avif') },
+  { slug: 'as-the-sea', title: 'As the Sea', year: 2026, director: 'Regia Andrea Corazza', type: 'Cortometraggio', poster: assetUrl('AsTheSea-Poster-212x300.avif') },
+  { slug: 'beyond-the-border', title: 'Beyond the Border', year: 2026, director: 'Regia Irena Daskalova', type: 'Cortometraggio', poster: assetUrl('BeyondTheBorderPOSTER-168x300.avif') },
+  { slug: 'hidden-in-the-dark', title: 'Hidden in the Dark', year: 2025, director: 'Regia Christian Gato', type: 'Cortometraggio', poster: assetUrl('Poster-HITD-v01-214x300.avif') },
+  { slug: 'el-mazarol', title: 'El Mazarol', year: 2025, director: 'Regia Juri Ferri', type: 'Cortometraggio', poster: assetUrl('el-mazarol-POSTER-0-1440x1800-1-240x300.avif') },
+  { slug: 'the-ministry', title: 'The Ministry', year: 2025, director: 'Regia Aaron Ryan', type: 'Cortometraggio', poster: assetUrl('Poster-The-Ministry-203x300.avif') },
+  { slug: 'il-sogno-disegnato', title: 'Il sogno disegnato', year: 2025, director: 'Regia Andrea Corazza', type: 'Cortometraggio', poster: assetUrl('Il-Sogno-Disegnato-poster-212x300.avif') },
+  { slug: 'the-fox-and-the-crow', title: 'The Fox and the Crow', year: 2025, director: 'Regia Shakila Bizimana', type: 'Cortometraggio', poster: assetUrl('POSTER-THE-FOX-THE-CROW-1-212x300.avif') },
+  { slug: 'sans-dieu', title: 'Sans Dieu', year: 2024, director: 'Regia Alessandro Rocca', type: 'Cortometraggio', poster: assetUrl('poster_SansDieu-200x300.avif') },
+  { slug: 'centipede', title: 'Centipede', year: 2022, director: 'Regia Vera Ivanova', type: 'Cortometraggio', poster: assetUrl('Centipede-poster-212x300.jpeg') },
+];
+
+const fallbackTracks: Track[] = [
+  { id: 'wished-for-a-hug', title: 'Wished for a hug', mood: 'Emozionale, minimale', instrumentation: 'Piano e pluck', src: '' },
+  { id: 'abysmal-distance', title: 'Abysmal Distance', mood: 'Drammatico', instrumentation: 'Archi, registrazione reale', src: '' },
+  { id: 'give-me-back-it', title: 'Give me back it', mood: 'Azione, battaglia', instrumentation: 'Archi (MIDI)', src: '' },
+  { id: 'a-journey-of-love', title: 'A Journey of Love', mood: 'Romantico', instrumentation: 'Piano, viola e cello (MIDI)', src: '' },
+ { id: 'intense-connection', title: 'Intense Connection', mood: 'Sci-fi drama', instrumentation: 'Orchestra reale', src: '/audio/IntenseConnection-14.mp3' },
+  { id: 'foresight', title: 'Foresight – Main Theme', mood: 'Epico, avventura', instrumentation: 'Grande orchestra reale', src: '' },
+  { id: 'innocent-ugly-truth', title: 'Innocent Ugly Truth', mood: 'Horror intimo', instrumentation: 'Piano e archi (MIDI)', src: '' },
+  { id: 'primitive-chase', title: 'Primitive Chase', mood: 'Horror, inseguimento', instrumentation: 'Registrazione reale', src: '' },
+  { id: 'sans-dieu-ending-titles', title: 'Sans Dieu – Ending Titles', mood: 'Ipnotico, drammatico', instrumentation: 'Voce e soundscape', src: '' },
+];
+
+let projects = fallbackProjects;
+let tracks = fallbackTracks;
+
+if (apiBase) {
+  try {
+    const response = await fetch(`${apiBase}/api/projects?published=true`, { headers: { Accept: 'application/json' } });
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data?.projects)) projects = data.projects.map((project: Project) => ({
+        ...project,
+        poster: assetUrl(project.poster),
+      }));
+      if (Array.isArray(data?.tracks)) tracks = data.tracks.map((track: Track) => ({
+        ...track,
+        src: track.src ? assetUrl(track.src) : '',
+      }));
+    }
+  } catch {
+    // Keep the curated fallback so the site still renders if the CMS/API is offline.
+  }
+}
+
+const years = ['Tutti', '2026', '2025', '2024 e prima'];
+const awards = [
+  ['Tampere Film Festival', 'Official selection'],
+  ['Young Talent Award', 'Finalista · 2024'],
+  ['ISFMF', 'Nomination · 2025'],
+  ['Apulia Soundtrack Awards', 'Top 10 · 2022'],
+];
+
+const socials = [
+  ['Instagram', 'https://www.instagram.com/francesco_marzola/'],
+  ['Facebook', 'https://www.facebook.com/Francesco-Marzola-Music-107477305135625'],
+  ['IMDb', 'https://www.imdb.com/name/nm13494062/'],
+  ['Spotify', 'https://open.spotify.com/artist/19x9qN4lYMAPYatRJ1Nm0P'],
+  ['YouTube', 'https://www.youtube.com/channel/UCf5Qaoq04gfPUd8-Goy0RUw'],
+];
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b120e" />
+    <title>Francesco Marzola — Composer for Film & Games</title>
+    <meta
+      name="description"
+      content="Francesco Marzola, compositore italiano di musiche originali per cinema e videogiochi. Ascolta i brani, scopri i progetti e parliamo della tua storia."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Raleway:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="hero" id="top" style={`--hero-image: url("${assetUrl('Francesco_conducting110.jpg')}")`}>
+      <div class="hero__orb hero__orb--one" aria-hidden="true"></div>
+      <div class="hero__orb hero__orb--two" aria-hidden="true"></div>
+      <div class="hero__grid" aria-hidden="true"></div>
+
+      <nav class="nav shell" aria-label="Navigazione principale">
+        <a class="brand" href="#top" aria-label="Francesco Marzola, home">
+          <span class="brand__mark">FM</span>
+          <span>Francesco Marzola</span>
+        </a>
+        <div class="nav__links">
+          <a href="#musica">Musica</a>
+          <a href="#progetti">Progetti</a>
+          <a href="#chi-sono">Chi sono</a>
+          <a href="#contatti">Contatti</a>
+        </div>
+        <a class="nav__cta" href="#contatti">Parliamo</a>
+      </nav>
+
+      <div class="hero__content shell">
+        <p class="eyebrow reveal">COMPOSITORE · FILM · GAMES</p>
+        <h1 class="hero__title reveal reveal--delay-1">
+          Musica come<br />
+          <em>cuore</em> del tuo progetto.
+        </h1>
+        <p class="hero__lede reveal reveal--delay-2">
+          Costruisco colonne sonore che seguono la storia, respirano con le immagini e danno un’identità emotiva al tuo mondo.
+        </p>
+        <div class="hero__actions reveal reveal--delay-3">
+          <a class="button button--solid" href="#musica">Ascolta i brani <span>↘</span></a>
+          <a class="button button--ghost" href="#progetti">Esplora i progetti</a>
+        </div>
+      </div>
+
+      <div class="hero__scroll" aria-hidden="true">
+        <span></span>
+        SCROLL
+      </div>
+    </header>
+
+    <main>
+      <section class="section section--audio" id="musica">
+        <div class="shell">
+          <div class="section__head reveal-on-scroll">
+            <div>
+              <p class="eyebrow">01 · MUSIC LIBRARY</p>
+              <h2>La musica prima<br /><em style="color: #b6413a !important;">delle parole.</em></h2>
+            </div>
+            <p class="section__intro">
+            
+            </p>
+          </div>
+
+          <div class="player" data-player>
+            <div class="player__top">
+              <div>
+                <span class="player__label">NOW PLAYING</span>
+                <h3 id="track-title">{tracks[0]?.title}</h3>
+                <p id="track-meta">{tracks[0]?.mood} · {tracks[0]?.instrumentation}</p>
+                <p class="player__source-status" id="track-status"></p>
+              </div>
+              <button class="play" id="play-button" type="button" aria-label="Riproduci">▶</button>
+            </div>
+
+            <div class="wave-wrap">
+              <canvas id="waveform" tabindex="0" role="slider" aria-label="Posizione del brano" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></canvas>
+              <div class="wave-glow" aria-hidden="true"></div>
+            </div>
+
+            <div class="player__time">
+              <span id="current-time">0:00</span>
+              <span id="duration">0:00</span>
+            </div>
+
+            <audio id="audio" preload="metadata" crossorigin="anonymous"></audio>
+
+            <div class="track-list" id="track-list">
+              {tracks.map((track, index) => (
+                <button class:list={['track', index === 0 && 'is-active']} type="button" data-track-index={index}>
+                  <span class="track__num">{String(index + 1).padStart(2, '0')}</span>
+                  <span class="track__body">
+                    <strong>{track.title}</strong>
+                    <small>{track.mood}</small>
+                  </span>
+                  <span class="track__meta">{track.instrumentation}</span>
+                  <span class="track__arrow">↗</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+         
+        </div>
+     </section>
+
+      <section class="section section--projects" id="progetti">
+        <div class="shell">
+          <div class="section__head section__head--projects reveal-on-scroll">
+            <div>
+              <p class="eyebrow">02 · SELECTED WORK</p>
+              <h2>Storie che<br /><em style="color: #b6413a !important;">suonano</em></h2>
+            </div>
+            <div class="filter-wrap">
+              <span class="filter-label">Filtra per anno</span>
+              <div class="filters" role="group" aria-label="Filtra progetti per anno">
+                {years.map((year, index) => (
+                  <button type="button" class:list={['filter', index === 0 && 'is-selected']} data-year={year}>{year}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div class="projects-grid" id="projects-grid">
+            {projects.map((project) => (
+              <article class="project reveal-on-scroll" data-project-year={project.year}>
+                <a href={project.trailerUrl ?? '#contatti'} class="project__visual" aria-label={`Apri ${project.title}`}>
+                  <img src={project.poster || assetUrl('Centipede-poster-212x300.jpeg')} alt={`Locandina di ${project.title}`} loading="lazy" />
+                  <span class="project__veil"></span>
+                  <span class="project__play">↗</span>
+                </a>
+                <div class="project__meta-row">
+                  <div>
+                    <h3>{project.title}</h3>
+                    <p>{project.director ?? project.type ?? 'Original score'}</p>
+                  </div>
+                  <span class="project__year">{project.year}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section class="section section--dark" id="chi-sono">
+        <div class="shell about">
+          <div class="about__media reveal-on-scroll" data-parallax="0.12">
+            <div class="about__portrait">
+              <img src={assetUrl('FrancescoMarzola_conducting_bew_crop.jpg')} alt="Francesco Marzola" loading="lazy" />
+            </div>
+            <div class="about__stamp">FM<br /><span>COMPOSER</span></div>
+          </div>
+
+          <div class="about__copy reveal-on-scroll">
+            <p class="eyebrow">03 · ABOUT</p>
+            <h2>Comporre significa<br /><em>dare forma al tempo.</em></h2>
+            <p>
+              Sono Francesco Marzola, compositore italiano specializzato in musica per cinema e videogiochi. Compongo, orchestro e dirigo, lavorando con registi e team creativi fin dalle prime fasi del progetto.
+            </p>
+            <blockquote>
+              “La musica ha la straordinaria capacità di evocare emozioni, come la magia delle immagini in movimento.”
+              <span>— Igor Stravinsky</span>
+            </blockquote>
+            <div class="about__facts">
+              <div><strong>Film</strong><span>Original score</span></div>
+              <div><strong>Games</strong><span>World building</span></div>
+              <div><strong>Orchestra</strong><span>Recording direction</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section--awards" id="festival">
+        <div class="shell">
+          <div class="section__head reveal-on-scroll">
+            <div>
+              <p class="eyebrow">04 · RECOGNITION</p>
+              <h2>Festival, selezioni e<br /><em style="color: #b6413a !important;">premi.</em>
+</h2>
+            </div>
+          </div>
+
+          <div class="awards-grid">
+            <div class="award reveal-on-scroll">
+              <img src={assetUrl('1722509711-66ab698fddfbb-venice-iff-2024-logo-png-300x168.avif')} alt="Venice International Film Festival logo" loading="lazy" />
+              <div><strong>Venice IFF</strong><span>Official selection / festival presence</span></div>
+            </div>
+            <div class="award reveal-on-scroll">
+              <img src={assetUrl('TampereLogo-300x160.avif')} alt="Tampere Film Festival logo" loading="lazy" />
+              <div><strong>Tampere</strong><span>Film Festival</span></div>
+            </div>
+            <div class="award reveal-on-scroll">
+              <img src={assetUrl('ISFMF_2025_Top.avif')} alt="ISFMF 2025 recognition" loading="lazy" />
+              <div><strong>ISFMF</strong><span>Nomination · 2025</span></div>
+            </div>
+            <div class="award reveal-on-scroll">
+              <img src={assetUrl('TOP-10-Apulia-150x150.png')} alt="Top 10 Apulia Soundtrack Awards" loading="lazy" />
+              <div><strong>Apulia</strong><span>Top 10 · 2022</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section--contact" id="contatti">
+        <div class="shell contact">
+          <div class="contact__copy reveal-on-scroll">
+            <p class="eyebrow">05 · LET'S TALK</p>
+            <!-- Sostituisci la riga del tuo codice con questa -->
+<h2>Hai una storia<br />da <em style="color: #b6413a !important;">ascoltare?</em></h2>
+
+            <p>
+              Mandami una sinossi, una reference o semplicemente l’idea. Ti rispondo con un primo punto di vista musicale e una proposta di percorso.
+            </p>
+            <a class="mail" href="mailto:francesco@marzolamusic.com">francesco@marzolamusic.com ↗</a>
+          </div>
+
+          <form class="contact-form reveal-on-scroll" action="/api/contact" method="post">
+            <label>
+              <span>Nome</span>
+              <input name="name" autocomplete="name" required />
+            </label>
+            <label>
+              <span>Email</span>
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              <span>Tipo di progetto</span>
+              <select name="project_type">
+                <option value="short-film">Cortometraggio</option>
+                <option value="feature-film">Lungometraggio</option>
+                <option value="game">Videogioco</option>
+                <option value="documentary">Documentario</option>
+                <option value="other">Altro</option>
+              </select>
+            </label>
+            <label>
+              <span>Messaggio</span>
+              <textarea name="message" rows="5" placeholder="Parlami del progetto..."></textarea>
+            </label>
+            <input type="hidden" name="source" value="website" />
+            <button class="button button--solid button--submit" type="submit">Invia il progetto <span>↗</span></button>
+            <p class="form-note">L’endpoint <code>/api/contact</code> può creare la lead nel tuo backend/CRM.</p>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="shell footer__top">
+        <div>
+          <a class="brand brand--footer" href="#top"><span class="brand__mark">FM</span><span>Francesco Marzola</span></a>
+          <p>Composer for film & games.</p>
+        </div>
+        <div class="footer__socials">
+          {socials.map(([label, href]) => <a href={href} target="_blank" rel="noopener noreferrer">{label}</a>)}
+        </div>
+      </div>
+      <div class="shell footer__bottom">
+        <span>© 2026 Francesco Marzola</span>
+        <span>Public site · analytics/admin not rendered here</span>
+      </div>
+    </footer>
+
+    <script define:vars={{ tracks }}>
+      const TRACKS = tracks;
+      const root = document.documentElement;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      const $ = (selector) => document.querySelector(selector);
+      const $$ = (selector) => [...document.querySelectorAll(selector)];
+
+      // ------------------------------
+      // Parallax / motion
+      // ------------------------------
+      const parallaxTargets = $$('[data-parallax]');
+      let latestScrollY = window.scrollY;
+      let ticking = false;
+
+      const updateParallax = () => {
+        ticking = false;
+        if (reduceMotion) return;
+        document.querySelectorAll('.hero__orb').forEach((el, index) => {
+          const speed = index === 0 ? 0.08 : -0.045;
+          el.style.transform = `translate3d(0, ${latestScrollY * speed}px, 0)`;
+        });
+        parallaxTargets.forEach((el) => {
+          const speed = Number(el.dataset.parallax || 0.1);
+          const rect = el.getBoundingClientRect();
+          const shift = (window.innerHeight * 0.5 - rect.top) * speed;
+          el.style.transform = `translate3d(0, ${shift}px, 0)`;
+        });
+      };
+
+      window.addEventListener('scroll', () => {
+        latestScrollY = window.scrollY;
+        if (!ticking) {
+          ticking = true;
+          requestAnimationFrame(updateParallax);
+        }
+      }, { passive: true });
+
+      // ------------------------------
+      // Reveal on scroll
+      // ------------------------------
+      const revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            revealObserver.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.12 });
+
+      $$('.reveal-on-scroll').forEach((el) => revealObserver.observe(el));
+
+      // ------------------------------
+      // Audio player + real MP3 waveform
+      // ------------------------------
+      const audio = $('#audio');
+      const canvas = $('#waveform');
+      const ctx = canvas.getContext('2d');
+      const playButton = $('#play-button');
+      const titleEl = $('#track-title');
+      const metaEl = $('#track-meta');
+      const currentEl = $('#current-time');
+      const durationEl = $('#duration');
+      const statusEl = $('#track-status');
+      const trackButtons = $$('.track');
+      let currentTrack = 0;
+      let peaks = [];
+      let audioBuffer = null;
+      let resizeObserver;
+
+      const formatTime = (value) => {
+        if (!Number.isFinite(value)) return '0:00';
+        const min = Math.floor(value / 60);
+        const sec = Math.floor(value % 60).toString().padStart(2, '0');
+        return `${min}:${sec}`;
+      };
+
+      const getColors = () => {
+        const styles = getComputedStyle(root);
+        return {
+          wave: styles.getPropertyValue('--wave').trim(),
+          accent: styles.getPropertyValue('--accent').trim(),
+          line: styles.getPropertyValue('--line').trim(),
+        };
+      };
+
+      const resizeCanvas = () => {
+        const rect = canvas.getBoundingClientRect();
+        const ratio = Math.max(1, window.devicePixelRatio || 1);
+        canvas.width = Math.floor(rect.width * ratio);
+        canvas.height = Math.floor(rect.height * ratio);
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        drawWaveform();
+      };
+
+      const resamplePeaks = (buffer, count = 180) => {
+        const channels = buffer.numberOfChannels;
+        const length = buffer.length;
+        const blockSize = Math.max(1, Math.floor(length / count));
+        const result = new Array(count).fill(0);
+
+        for (let i = 0; i < count; i++) {
+          const start = i * blockSize;
+          const end = Math.min(length, start + blockSize);
+          let peak = 0;
+          for (let channel = 0; channel < channels; channel++) {
+            const data = buffer.getChannelData(channel);
+            for (let j = start; j < end; j += Math.max(1, Math.floor((end - start) / 80))) {
+              peak = Math.max(peak, Math.abs(data[j]));
+            }
+          }
+          const envelope = 0.18 + 0.82 * Math.min(1, peak * 1.35);
+          result[i] = envelope;
+        }
+        return result;
+      };
+
+      const decodeTrack = async (track) => {
+        try {
+          const response = await fetch(track.src, { cache: 'force-cache' });
+          if (!response.ok) throw new Error(`Audio fetch failed: ${response.status}`);
+          const arrayBuffer = await response.arrayBuffer();
+          const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+          const audioContext = new AudioContextCtor();
+          audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+          peaks = resamplePeaks(audioBuffer, Math.min(220, Math.max(120, Math.floor(audioBuffer.duration * 1.4))));
+          durationEl.textContent = formatTime(audioBuffer.duration);
+          drawWaveform();
+          await audioContext.close();
+        } catch (error) {
+          // The player still works if decoding is blocked by CORS or browser policy.
+          peaks = [];
+          drawWaveform();
+        }
+      };
+
+      const drawWaveform = () => {
+        if (!canvas) return;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        if (!width || !height) return;
+        const { wave, accent, line } = getColors();
+        ctx.clearRect(0, 0, width, height);
+
+        ctx.strokeStyle = line;
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.moveTo(0, height / 2);
+        ctx.lineTo(width, height / 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        if (!peaks.length) {
+          ctx.strokeStyle = wave;
+          ctx.globalAlpha = 0.45;
+          ctx.beginPath();
+          ctx.moveTo(0, height / 2);
+          ctx.lineTo(width, height / 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          return;
+        }
+
+        const source = peaks;
+        const progress = audio.duration ? audio.currentTime / audio.duration : 0;
+        const gap = 2;
+        const barWidth = Math.max(1.3, (width - gap * source.length) / source.length);
+
+        source.forEach((value, index) => {
+          const x = index * (barWidth + gap);
+          const barHeight = Math.max(4, value * height * 0.9);
+          ctx.fillStyle = index / source.length <= progress ? accent : wave;
+          ctx.beginPath();
+          ctx.roundRect(x, (height - barHeight) / 2, barWidth, barHeight, Math.min(2, barWidth / 2));
+          ctx.fill();
+        });
+      };
+
+      const loadTrack = async (index, autoplay = false) => {
+        currentTrack = index;
+        const track = TRACKS[index];
+        if (!track) return;
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+        audioBuffer = null;
+        peaks = [];
+        titleEl.textContent = track.title;
+        metaEl.textContent = `${track.mood} · ${track.instrumentation}`;
+        currentEl.textContent = '0:00';
+        durationEl.textContent = '0:00';
+        statusEl.textContent = track.src ? 'MP3 waveform from source audio' : 'Add the real MP3 URL/file in the backend to enable playback';
+        statusEl.hidden = Boolean(track.src);
+        trackButtons.forEach((button, i) => button.classList.toggle('is-active', i === index));
+        if (!track.src) { drawWaveform(); return; }
+        audio.src = track.src;
+        audio.load();
+        await decodeTrack(track);
+        if (autoplay) {
+          try { await audio.play(); } catch {}
+        }
+      };
+
+      playButton.addEventListener('click', async () => {
+        if (!audio.src) { statusEl.hidden = false; return; }
+        if (audio.paused) {
+          try { await audio.play(); } catch {}
+        } else {
+          audio.pause();
+        }
+      });
+
+      audio.addEventListener('play', () => {
+        playButton.textContent = '❚❚';
+        playButton.setAttribute('aria-label', 'Pausa');
+        root.classList.add('is-listening');
+      });
+      audio.addEventListener('pause', () => {
+        playButton.textContent = '▶';
+        playButton.setAttribute('aria-label', 'Riproduci');
+        root.classList.remove('is-listening');
+      });
+      audio.addEventListener('ended', () => loadTrack((currentTrack + 1) % TRACKS.length, true));
+      audio.addEventListener('timeupdate', () => {
+        currentEl.textContent = formatTime(audio.currentTime);
+        drawWaveform();
+        canvas.setAttribute('aria-valuenow', String(Math.round((audio.currentTime / (audio.duration || 1)) * 100)));
+      });
+      audio.addEventListener('loadedmetadata', () => {
+        durationEl.textContent = formatTime(audio.duration);
+        drawWaveform();
+      });
+
+      const seek = (clientX) => {
+        const rect = canvas.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        if (Number.isFinite(audio.duration)) audio.currentTime = ratio * audio.duration;
+      };
+
+      canvas.addEventListener('click', (event) => seek(event.clientX));
+      canvas.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowRight') { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5); event.preventDefault(); }
+        if (event.key === 'ArrowLeft') { audio.currentTime = Math.max(0, audio.currentTime - 5); event.preventDefault(); }
+        if (event.key === 'Home') { audio.currentTime = 0; event.preventDefault(); }
+        if (event.key === 'End') { audio.currentTime = audio.duration || 0; event.preventDefault(); }
+      });
+
+      trackButtons.forEach((button, index) => {
+        button.addEventListener('click', () => loadTrack(index, true));
+      });
+
+      resizeObserver = new ResizeObserver(resizeCanvas);
+      resizeObserver.observe(canvas);
+      window.addEventListener('resize', resizeCanvas);
+      loadTrack(0);
+      resizeCanvas();
+
+      // ------------------------------
+      // Project filters
+      // ------------------------------
+      const projectCards = $$('.project');
+      const filterButtons = $$('.filter');
+      const matchesYear = (projectYear, filter) => {
+        if (filter === 'Tutti') return true;
+        if (filter === '2024 e prima') return projectYear <= 2024;
+        return Number(projectYear) === Number(filter);
+      };
+
+      filterButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const filter = button.dataset.year;
+          filterButtons.forEach((b) => b.classList.toggle('is-selected', b === button));
+          projectCards.forEach((card) => {
+            const show = matchesYear(card.dataset.projectYear, filter);
+            card.hidden = !show;
+          });
+        });
+      });
+
+      // ------------------------------
+      // Magnetic CTA effect
+      // ------------------------------
+      if (!reduceMotion) {
+        $$('.button--solid, .nav__cta').forEach((button) => {
+          button.addEventListener('pointermove', (event) => {
+            const rect = button.getBoundingClientRect();
+            const x = (event.clientX - rect.left - rect.width / 2) * 0.08;
+            const y = (event.clientY - rect.top - rect.height / 2) * 0.08;
+            button.style.transform = `translate(${x}px, ${y}px)`;
+          });
+          button.addEventListener('pointerleave', () => { button.style.transform = ''; });
+        });
+      }
+
+      updateParallax();
+    </script>
+
+    <style>
+      :root {
+        --bg: #f2f5f0;
+        --paper: #f8faf6;
+        --ink: #122219;
+        --muted: #66756d;
+        --line: #d4ddd5;
+        --dark: #0b120e;
+        --dark-soft: #111c16;
+        --accent: #d4ef98;
+        --green: #29553f;
+        --wave: #6f8277;
+        color-scheme: light;
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--bg);
+        font-family: Raleway, system-ui, sans-serif;
+        line-height: 1.65;
+        overflow-x: hidden;
+      }
+      body::selection { background: var(--ink); color: var(--accent); }
+      a { color: inherit; }
+      button, input, textarea, select { font: inherit; }
+      img { max-width: 100%; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88em; }
+
+      .shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+      .grain {
+        pointer-events: none;
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        opacity: .055;
+        mix-blend-mode: multiply;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E");
+      }
+
+      .hero {
+        position: relative;
+        min-height: 94svh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        color: #edf4ee;
+        background: radial-gradient(circle at 72% 26%, rgba(74, 132, 102, .26), transparent 30%), linear-gradient(125deg, rgba(10,16,12,.96), rgba(21,40,29,.82) 72%, rgba(12,23,16,.95)), var(--hero-image) center 30% / cover no-repeat;
+        isolation: isolate;
+      }
+      .hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, rgba(7, 12, 9, .84), rgba(7, 12, 9, .34) 65%, rgba(7, 12, 9, .66));
+        z-index: -1;
+      }
+      .hero__grid {
+        position: absolute;
+        inset: 0;
+        opacity: .17;
+        z-index: -1;
+        background-image: linear-gradient(rgba(206, 238, 194, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(206, 238, 194, .08) 1px, transparent 1px);
+        background-size: 56px 56px;
+        mask-image: linear-gradient(to bottom, #000, transparent 80%);
+      }
+      .hero__orb {
+        position: absolute;
+        width: 40vw;
+        aspect-ratio: 1;
+        border-radius: 9999px;
+        filter: blur(60px);
+        opacity: .18;
+        z-index: -1;
+        will-change: transform;
+      }
+      .hero__orb--one { top: 14%; right: -9%; background: #b6dd96; }
+      .hero__orb--two { top: 45%; left: -18%; background: #437a5c; width: 28vw; }
+
+      .nav { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 28px; padding-top: 24px; z-index: 2; }
+      .brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; font: 600 18px 'Cormorant Garamond', serif; letter-spacing: .01em; }
+      .brand__mark { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 1px solid rgba(236, 244, 238, .35); border-radius: 50%; font: 600 12px Raleway, sans-serif; letter-spacing: .08em; }
+      .nav__links { display: flex; gap: 24px; margin-left: auto; }
+      .nav__links a { color: rgba(237, 244, 238, .73); text-decoration: none; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; transition: color .2s ease; }
+      .nav__links a:hover { color: #fff; }
+      .nav__cta { text-decoration: none; border: 1px solid rgba(236, 244, 238, .35); padding: 10px 15px; border-radius: 999px; font-size: 12px; transition: border-color .2s ease, color .2s ease, transform .2s ease; will-change: transform; }
+      .nav__cta:hover { border-color: var(--accent); color: var(--accent); }
+
+      .hero__content { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 90px 0 120px; }
+      .eyebrow { margin: 0 0 18px; font: 600 11px Raleway, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: #81948a; }
+      .hero .eyebrow { color: #a8baae; }
+      h1, h2, h3 { margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; }
+      .hero__title { max-width: 900px; font-size: clamp(68px, 10vw, 144px); line-height: .82; letter-spacing: -.045em; }
+      .hero__title em, h2 em { color: var(--accent); font-style: italic; font-weight: 500; }
+      .hero__lede { max-width: 540px; margin: 28px 0 0; color: rgba(237, 244, 238, .73); font-size: 16px; }
+      .hero__actions { display: flex; align-items: center; gap: 12px; margin-top: 32px; }
+      .button { display: inline-flex; align-items: center; justify-content: center; gap: 16px; min-height: 50px; padding: 0 20px; border-radius: 999px; text-decoration: none; border: 1px solid transparent; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; transition: transform .2s ease, background .2s ease, color .2s ease, border-color .2s ease; will-change: transform; }
+      .button span { font-size: 16px; }
+      .button--solid { background: var(--accent); color: #15241b; }
+      .button--solid:hover { background: #e0f7a9; }
+      .button--ghost { color: #ecf5ef; border-color: rgba(236, 244, 238, .2); }
+      .button--ghost:hover { border-color: rgba(236, 244, 238, .55); }
+      .hero__scroll { position: absolute; bottom: 26px; left: 50%; display: flex; flex-direction: column; align-items: center; gap: 10px; transform: translateX(-50%); font: 600 9px Raleway, sans-serif; letter-spacing: .17em; color: rgba(236, 244, 238, .45); }
+      .hero__scroll span { width: 1px; height: 42px; background: linear-gradient(#a4b8aa, transparent); }
+
+      .section { padding: 130px 0; position: relative; }
+      .section--audio { background: var(--paper); }
+      .section--projects { background: #e8eee8; }
+      .section--dark { background: var(--dark); color: #eef5ef; overflow: hidden; }
+      .section--awards { background: #f5f7f2; }
+      .section--contact { background: #dde8df; }
+      .section__head { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(260px, .7fr); gap: 40px; align-items: end; margin-bottom: 56px; }
+      .section__head h2 { font-size: clamp(54px, 7vw, 86px); line-height: .88; letter-spacing: -.04em; }
+      .section__intro { max-width: 430px; margin: 0 0 4px auto; color: var(--muted); font-size: 14px; }
+
+      .player { position: relative; padding: 34px; border: 1px solid var(--line); border-radius: 22px; background: #f0f4ef; box-shadow: 0 22px 60px rgba(23, 50, 37, .08); overflow: hidden; }
+      .player::after { content: ''; position: absolute; width: 280px; height: 280px; right: -120px; top: -140px; border-radius: 50%; background: rgba(191, 218, 161, .3); filter: blur(4px); pointer-events: none; }
+      .player__top { display: flex; align-items: center; justify-content: space-between; gap: 30px; }
+      .player__label { display: block; font-size: 9px; letter-spacing: .18em; color: #7b8b82; }
+      .player h3 { margin-top: 6px; font-size: clamp(34px, 4.5vw, 54px); line-height: .9; letter-spacing: -.03em; }
+      .player p { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+      .player__source-status { margin-top: 7px !important; font-size: 10px !important; color: #8a5f47 !important; }
+      .play { width: 60px; height: 60px; border: 0; border-radius: 50%; background: var(--ink); color: var(--accent); cursor: pointer; font-size: 18px; display: grid; place-items: center; box-shadow: 0 12px 28px rgba(18, 34, 25, .17); transition: transform .2s ease, background .2s ease; }
+      .play:hover { transform: scale(1.04); }
+      .wave-wrap { position: relative; margin-top: 32px; }
+      #waveform { width: 100%; height: 132px; display: block; cursor: pointer; touch-action: none; outline: none; }
+      #waveform:focus-visible { outline: 2px solid var(--green); outline-offset: 8px; border-radius: 6px; }
+      .wave-glow { position: absolute; left: 0; right: 0; bottom: 18px; height: 50px; background: radial-gradient(circle at 15% 50%, rgba(176, 214, 132, .25), transparent 42%); pointer-events: none; opacity: .8; }
+      .player__time { display: flex; justify-content: space-between; margin-top: -3px; color: #718177; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .track-list { margin-top: 22px; border-top: 1px solid var(--line); }
+      .track { width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr) minmax(160px, .45fr) 22px; gap: 18px; align-items: center; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: transparent; padding: 16px 0; color: var(--ink); cursor: pointer; transition: color .2s ease, padding .2s ease; }
+      .track:hover, .track.is-active { color: var(--green); padding-left: 6px; }
+      .track__num { color: #94a199; font: 10px ui-monospace, monospace; }
+      .track__body { min-width: 0; }
+      .track__body strong { display: block; font: 600 19px 'Cormorant Garamond', serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .track__body small, .track__meta { font-size: 11px; color: #7a887f; }
+      .track__meta { justify-self: end; text-align: right; }
+      .track__arrow { color: #8d9a92; font-size: 15px; }
+      .listen-note { display: grid; grid-template-columns: auto 1fr; gap: 14px; margin-top: 20px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; }
+      .listen-note__icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: var(--accent); }
+      .listen-note strong { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+      .listen-note p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+
+      .filter-wrap { justify-self: end; }
+      .filter-label { display: block; color: var(--muted); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 10px; }
+      .filters { display: flex; flex-wrap: wrap; gap: 7px; }
+      .filter { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 999px; padding: 8px 13px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all .18s ease; }
+      .filter.is-selected, .filter:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+      .projects-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 34px 18px; }
+      .project { min-width: 0; }
+      .project[hidden] { display: none; }
+      .project__visual { position: relative; display: block; aspect-ratio: 2 / 2.72; overflow: hidden; border-radius: 5px; background: #ccd4cd; text-decoration: none; }
+      .project__visual img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(.72) contrast(.97); transform: scale(1.001); transition: transform .75s cubic-bezier(.2,.75,.2,1), filter .4s ease; }
+      .project__veil { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(4, 12, 8, .62)); opacity: .6; transition: opacity .35s ease; }
+      .project__play { position: absolute; right: 12px; bottom: 12px; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: rgba(247, 251, 245, .92); color: var(--ink); transform: translateY(8px); opacity: 0; transition: opacity .25s ease, transform .25s ease; }
+      .project:hover .project__visual img { transform: scale(1.045); filter: saturate(.95) contrast(1); }
+      .project:hover .project__veil { opacity: .78; }
+      .project:hover .project__play { opacity: 1; transform: translateY(0); }
+      .project__meta-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-top: 12px; }
+      .project h3 { font-size: 24px; line-height: .95; }
+      .project p { margin: 5px 0 0; font-size: 11px; color: var(--muted); }
+      .project__year { color: #839088; font: 10px ui-monospace, monospace; padding-top: 3px; }
+
+      .about { display: grid; grid-template-columns: minmax(280px, .8fr) minmax(0, 1.2fr); gap: 90px; align-items: center; }
+      .about__media { position: relative; max-width: 430px; }
+      .about__portrait { aspect-ratio: 4 / 5; background: linear-gradient(145deg, #253a2e, #101a14); overflow: hidden; border-radius: 6px; }
+      .about__portrait img { width: 100%; height: 100%; object-fit: cover; mix-blend-mode: luminosity; opacity: .88; }
+      .about__stamp { position: absolute; left: -22px; bottom: 20px; display: grid; place-items: center; width: 74px; height: 74px; border-radius: 50%; background: var(--accent); color: var(--dark); text-align: center; font: 700 16px/1 'Cormorant Garamond', serif; transform: rotate(-11deg); }
+      .about__stamp span { font: 600 7px Raleway, sans-serif; letter-spacing: .16em; }
+      .about__copy { max-width: 700px; }
+      .about h2 { font-size: clamp(54px, 6.5vw, 82px); line-height: .88; letter-spacing: -.04em; }
+      .about__copy > p { margin-top: 28px; color: #bac7bf; max-width: 58ch; }
+      blockquote { margin: 34px 0 0; padding: 24px 0 0; border-top: 1px solid rgba(235, 245, 238, .13); font: 500 24px/1.15 'Cormorant Garamond', serif; max-width: 620px; }
+      blockquote span { display: block; margin-top: 12px; color: #7f9287; font: 10px Raleway, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+      .about__facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 34px; }
+      .about__facts div { border-top: 1px solid rgba(235, 245, 238, .12); padding-top: 12px; }
+      .about__facts strong { display: block; font: 600 23px 'Cormorant Garamond', serif; }
+      .about__facts span { color: #7f9287; font-size: 10px; }
+
+      .awards-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+      .award { min-height: 170px; border: 1px solid var(--line); padding: 22px; display: flex; flex-direction: column; justify-content: space-between; border-radius: 4px; background: rgba(255,255,255,.34); }
+      .award img { width: auto; max-width: 88px; height: 52px; object-fit: contain; object-position: left center; display: block; margin-bottom: 12px; }
+      .award__mark { color: #7c9286; font-size: 17px; }
+      .award strong { display: block; font: 600 26px/1 'Cormorant Garamond', serif; }
+      .award span:last-child { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; }
+
+      .contact { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, .8fr); gap: 100px; align-items: start; }
+      .contact h2 { font-size: clamp(58px, 7vw, 90px); line-height: .86; letter-spacing: -.04em; }
+      .contact__copy > p:not(.eyebrow) { max-width: 50ch; margin: 28px 0 0; color: #5f7265; font-size: 14px; }
+      .mail { display: inline-block; margin-top: 26px; font: 600 16px 'Cormorant Garamond', serif; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+      .contact-form { display: grid; gap: 15px; padding: 28px; border: 1px solid rgba(18, 34, 25, .15); background: rgba(248,250,246,.55); border-radius: 5px; }
+      .contact-form label span { display: block; margin-bottom: 7px; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: #728178; }
+      .contact-form input, .contact-form textarea, .contact-form select { width: 100%; border: 0; border-bottom: 1px solid rgba(18, 34, 25, .18); border-radius: 0; padding: 8px 0 10px; background: transparent; color: var(--ink); outline: none; }
+      .contact-form textarea { resize: vertical; min-height: 108px; }
+      .contact-form input:focus, .contact-form textarea:focus, .contact-form select:focus { border-bottom-color: var(--ink); }
+      .button--submit { border: 0; cursor: pointer; justify-self: start; }
+      .form-note { margin: -2px 0 0; color: #728178; font-size: 10px; }
+
+      .footer { padding: 52px 0 26px; background: var(--dark); color: #e7eee8; }
+      .brand--footer { font-size: 17px; }
+      .footer__top { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; }
+      .footer p { margin: 8px 0 0; color: #7f9084; font-size: 11px; }
+      .footer__socials { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+      .footer__socials a { border: 1px solid rgba(231, 238, 232, .15); border-radius: 999px; padding: 7px 11px; text-decoration: none; font-size: 10px; }
+      .footer__bottom { display: flex; justify-content: space-between; gap: 18px; margin-top: 50px; padding-top: 15px; border-top: 1px solid rgba(231, 238, 232, .1); color: #65766b; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+
+      .reveal, .reveal-on-scroll { opacity: 0; transform: translateY(22px); transition: opacity .8s ease, transform .8s cubic-bezier(.16,1,.3,1); }
+      .reveal--delay-1 { transition-delay: .1s; }
+      .reveal--delay-2 { transition-delay: .18s; }
+      .reveal--delay-3 { transition-delay: .26s; }
+      .hero .reveal { animation: heroIn .95s cubic-bezier(.16,1,.3,1) forwards; }
+      .hero .reveal--delay-1 { animation-delay: .08s; }
+      .hero .reveal--delay-2 { animation-delay: .16s; }
+      .hero .reveal--delay-3 { animation-delay: .24s; }
+      .reveal-on-scroll.is-visible { opacity: 1; transform: none; }
+      @keyframes heroIn { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+
+      .is-listening .wave-glow { animation: pulseGlow 2.4s ease-in-out infinite; }
+      @keyframes pulseGlow { 0%,100% { opacity: .5; transform: scaleX(.96); } 50% { opacity: 1; transform: scaleX(1.02); } }
+
+      @media (max-width: 1020px) {
+        .nav__links { gap: 16px; }
+        .projects-grid { grid-template-columns: repeat(3, 1fr); }
+        .about { gap: 55px; }
+        .awards-grid { grid-template-columns: repeat(2, 1fr); }
+        .contact { gap: 55px; }
+      }
+
+      @media (max-width: 760px) {
+        .shell { width: min(100% - 28px, 620px); }
+        .nav__links { display: none; }
+        .nav__cta { margin-left: auto; }
+        .hero { min-height: 90svh; }
+        .hero__content { padding: 72px 0 100px; }
+        .hero__title { font-size: clamp(64px, 16vw, 100px); }
+        .hero__lede { font-size: 14px; max-width: 42ch; }
+        .hero__actions { flex-direction: column; align-items: stretch; }
+        .button { width: 100%; }
+        .section { padding: 88px 0; }
+        .section__head, .contact, .about { grid-template-columns: 1fr; gap: 34px; }
+        .section__head { margin-bottom: 38px; }
+        .section__intro { margin: 0; }
+        .player { padding: 22px 16px; border-radius: 16px; }
+        .track { grid-template-columns: 30px minmax(0, 1fr) 22px; gap: 10px; }
+        .track__meta { display: none; }
+        .projects-grid { grid-template-columns: repeat(2, 1fr); gap: 28px 12px; }
+        .project h3 { font-size: 21px; }
+        .about__media { max-width: 78vw; }
+        .about__facts { grid-template-columns: 1fr; }
+        .awards-grid { grid-template-columns: 1fr; }
+        .award { min-height: 132px; }
+        .contact-form { padding: 20px; }
+        .footer__top, .footer__bottom { flex-direction: column; align-items: flex-start; }
+        .footer__socials { justify-content: flex-start; }
+      }
+
+      @media (max-width: 480px) {
+        .projects-grid { grid-template-columns: 1fr; }
+        .hero__title { font-size: 65px; }
+        .play { width: 54px; height: 54px; }
+        .player h3 { font-size: 38px; }
+        .about h2, .contact h2, .section__head h2 { font-size: 58px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+        .reveal, .reveal-on-scroll, .hero .reveal { opacity: 1; transform: none; }
+      }
+    </style>
+  </body>
 </html>
