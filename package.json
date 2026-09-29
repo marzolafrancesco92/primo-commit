@@ -12,7 +12,8 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^7.3.5"
+    "astro": "^7.3.5",
+    "wavesurfer.js": "^8.0.1"
   },
   "allowScripts": {
     "esbuild": true
