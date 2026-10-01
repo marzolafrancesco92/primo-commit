@@ -1,4 +1,6 @@
 ---
+import { getTracks, getProjects } from '../lib/sanity';
+
 export const prerender = false;
 
 interface Project {
@@ -64,6 +66,13 @@ const fallbackTracks: Track[] = [
 
 let projects = fallbackProjects;
 let tracks = fallbackTracks;
+try {
+  const [t, p] = await Promise.all([getTracks(), getProjects()]);
+  if (t.length) tracks = t;
+  if (p.length) projects = p;
+} catch (e) {
+  console.error('Sanity non raggiungibile, uso i dati di riserva', e);
+}
 
 if (apiBase) {
   try {
