@@ -443,6 +443,15 @@ const socials = [
       // ------------------------------
       // Audio player + real MP3 waveform
       // ------------------------------
+      // I file audio ospitati su Sanity passano dal nostro proxy
+      // (stesso dominio), così evitiamo il blocco CORS sia per la
+      // riproduzione sia per la lettura della waveform reale.
+      const resolvePlayableSrc = (src) => {
+        if (!src) return '';
+        if (src.includes('cdn.sanity.io')) return `/api/audio-proxy?src=${encodeURIComponent(src)}`;
+        return src;
+      };
+
       const audio = $('#audio');
       const canvas = $('#waveform');
       const ctx = canvas.getContext('2d');
@@ -507,7 +516,7 @@ const socials = [
 
       const decodeTrack = async (track) => {
         try {
-          const response = await fetch(track.src, { cache: 'force-cache' });
+          const response = await fetch(resolvePlayableSrc(track.src), { cache: 'force-cache' });
           if (!response.ok) throw new Error(`Audio fetch failed: ${response.status}`);
           const arrayBuffer = await response.arrayBuffer();
           const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
@@ -583,7 +592,7 @@ const socials = [
         statusEl.hidden = Boolean(track.src);
         trackButtons.forEach((button, i) => button.classList.toggle('is-active', i === index));
         if (!track.src) { drawWaveform(); return; }
-        audio.src = track.src;
+        audio.src = resolvePlayableSrc(track.src);
         audio.load();
         await decodeTrack(track);
         if (autoplay) {
