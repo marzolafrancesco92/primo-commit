@@ -5,9 +5,9 @@
       "ANTHROPIC_API_KEY": "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",
       "SANITY_WEBHOOK_SECRET": "WXImYxhVDyInhT0PXNcpiOQzkWPAC8yMRXPGV-sjtH0",
       "SANITY_WRITE_TOKEN": "skXwaNdj7SECp679qynaFS08fUgRCMI1tlHBIGntB2BcRdvP7C0Ksa7EmALUZwK8SobLuSm9fAKstcrB4KqzKoMxhOLk4ochzkSUZyZIPhGzMBqKAMs7SQQlqeHMH9OuAfUD9a8Wiqnzyu4k4ULwnlZ8S3p2ak4NovVgWFunIsOXGMuPIcBT"
-    },
+    }
     // ...
-  }
+  },
 
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"compatibility_date": "2026-09-26",
