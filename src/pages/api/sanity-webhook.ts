@@ -53,10 +53,10 @@ function errorResponse(step: string, error: any, status = 500) {
   );
 }
 
-export const POST: APIRoute = async ({ request }) => { // rimosso 'locals' che non serve più per le env
+// ... codice iniziale invariato (import, campi, ecc.)
+
+export const POST: APIRoute = async ({ request }) => {
   try {
-    // In Astro v6 + Cloudflare, 'env' importato da 'cloudflare:workers' 
-    // contiene già tutte le variabili d'ambiente del tuo progetto.
     const webhookSecret = env.SANITY_WEBHOOK_SECRET;
     const writeToken = env.SANITY_WRITE_TOKEN;
     const anthropicKey = env.ANTHROPIC_API_KEY;
@@ -71,8 +71,35 @@ export const POST: APIRoute = async ({ request }) => { // rimosso 'locals' che n
         ].filter(Boolean).join(', ')}`
       );
     }
+
+    // 1. Cloniamo la richiesta per assicurarci che il flusso binario rimanga intatto
+    const clonedRequest = request.clone();
     
-    // ... resto del tuo codice invariato
+    // 2. Estraiamo il testo grezzo (raw text) direttamente dalla richiesta clonata
+    const rawBody = await clonedRequest.text();
+    const signature = request.headers.get('sanity-webhook-signature') || '';
+
+    // 3. Eseguiamo la validazione ufficiale
+    let valid = false;
+    try {
+      valid = await isValidSignature(rawBody, signature, webhookSecret);
+    } catch (error) {
+      return errorResponse('verify-signature', error);
+    }
+    
+    if (!valid) {
+      return new Response(
+        JSON.stringify({ ok: false, step: 'verify-signature', error: 'Firma non valida' }), 
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 4. Se la firma è valida, analizziamo il JSON (usando la stringa rawBody già letta)
+    const payload = JSON.parse(rawBody);
+    const docId: string | undefined = payload._id;
+    const docType: string | undefined = payload._type;
+
+    // ... tutto il resto del codice per Sanity e Anthropic rimane invariato
 
    
 
