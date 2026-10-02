@@ -14,7 +14,7 @@
 
 import type { APIRoute } from 'astro';
 import { createClient } from '@sanity/client';
-import { translateFields } from '../../lib/translate';
+import { translateFields, hashFields } from '../../lib/translate';
 // Import richiesto da Astro v6 / Cloudflare Workers per le variabili d'ambiente
 import { env } from 'cloudflare:workers';
 // Importiamo il validatore ufficiale di Sanity per la firma digitale
@@ -105,7 +105,18 @@ export const POST: APIRoute = async ({ request }) => {
       if (typeof (doc as any)[field] === 'string') sourceFields[field] = (doc as any)[field];
     }
 
-    // 9. Richiediamo le traduzioni a Claude (Anthropic)
+    // 9. Controlliamo se il testo italiano è davvero cambiato dall'ultima
+    // traduzione. Se l'impronta combacia, questo webhook è scattato per il
+    // NOSTRO stesso salvataggio della traduzione precedente (set() sul
+    // documento = anche quello è un "Update") — ci fermiamo qui per evitare
+    // un loop infinito di chiamate a Claude.
+    const currentHash = await hashFields(sourceFields);
+    const previousHash = (doc as any)?.translations?.sourceHash;
+    if (previousHash && previousHash === currentHash) {
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason: 'testo italiano invariato' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // 10. Richiediamo le traduzioni a Claude (Anthropic)
     let en: Record<string, string>, bg: Record<string, string>;
     try {
       [en, bg] = await Promise.all([
@@ -116,9 +127,9 @@ export const POST: APIRoute = async ({ request }) => {
       return errorResponse('translate', error);
     }
 
-    // 10. Salviamo le traduzioni all'interno del documento di Sanity
+    // 11. Salviamo le traduzioni (e l'impronta) nel documento di Sanity
     try {
-      await client.patch(docId).set({ translations: { en, bg } }).commit({ autoGenerateArrayKeys: true });
+      await client.patch(docId).set({ translations: { en, bg, sourceHash: currentHash } }).commit({ autoGenerateArrayKeys: true });
     } catch (error) {
       return errorResponse('sanity-patch', error);
     }

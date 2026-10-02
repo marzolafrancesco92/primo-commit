@@ -29,6 +29,22 @@ async function callClaude(apiKey: string, systemPrompt: string, userText: string
   return text.trim();
 }
 
+/**
+ * Calcola un'impronta (hash) dei campi italiani da tradurre. Usata per
+ * capire se il testo sorgente è davvero cambiato da un webhook all'altro,
+ * così da non ritradurre (e non richiamare Claude) quando a scattare è
+ * stato il nostro stesso salvataggio della traduzione precedente.
+ */
+export async function hashFields(fields: Record<string, string | undefined>): Promise<string> {
+  const normalized = JSON.stringify(
+    Object.entries(fields)
+      .filter(([, v]) => v && v.trim())
+      .sort(([a], [b]) => a.localeCompare(b))
+  );
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 const LANG_NAMES: Record<string, string> = { en: 'inglese', bg: 'bulgaro' };
 
 /**
