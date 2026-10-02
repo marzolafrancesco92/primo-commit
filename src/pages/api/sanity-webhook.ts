@@ -15,6 +15,8 @@
 import type { APIRoute } from 'astro';
 import { createClient } from '@sanity/client';
 import { translateFields } from '../../lib/translate';
+// 1. Nuovo import richiesto da Astro v6 / Cloudflare Workers per le variabili d'ambiente
+import { env } from 'cloudflare:workers';
 
 export const prerender = false;
 
@@ -39,7 +41,7 @@ async function verifySignature(request: Request, secret: string, body: string): 
   );
   const signatureBuffer = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(signedContent));
   const expected = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+\$/, '');
   return expected === parts.v1;
 }
 
@@ -51,12 +53,12 @@ function errorResponse(step: string, error: any, status = 500) {
   );
 }
 
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request }) => {
   try {
-    const env = (locals as any)?.runtime?.env ?? {};
-    const webhookSecret = env.SANITY_WEBHOOK_SECRET;
-    const writeToken = env.SANITY_WRITE_TOKEN;
-    const anthropicKey = env.ANTHROPIC_API_KEY;
+    // 2. Lettura diretta delle variabili d'ambiente dall'import di Cloudflare
+    const webhookSecret = (env as any).SANITY_WEBHOOK_SECRET;
+    const writeToken = (env as any).SANITY_WRITE_TOKEN;
+    const anthropicKey = (env as any).ANTHROPIC_API_KEY;
 
     if (!webhookSecret || !writeToken || !anthropicKey) {
       return errorResponse(
