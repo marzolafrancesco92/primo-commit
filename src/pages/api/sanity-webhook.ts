@@ -103,7 +103,7 @@ export const POST: APIRoute = async ({ request }) => {
 
    
 
-    const rawBody = await request.text();
+   
 
     let valid = false;
     try {
