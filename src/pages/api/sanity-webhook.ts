@@ -101,11 +101,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // ... tutto il resto del codice per Sanity e Anthropic rimane invariato
 
-   
-
-   
-
-    let valid = false;
+  
     try {
       valid = await verifySignature(request, webhookSecret, rawBody);
     } catch (error) {
