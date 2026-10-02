@@ -11,30 +11,12 @@ const client = createClient({
   useCdn: true, // letture veloci e gratuite; i dati possono avere qualche secondo di ritardo
 });
 
-// Costruisce l'URL diretto di un file (audio o immagine) a partire
-// dal riferimento "asset" restituito da Sanity.
-function fileUrl(asset: any): string {
-  if (!asset?._ref) return '';
-  // formato ref: file-<id>-<estensione>
-  const [, id, ext] = asset._ref.split('-');
-  return `https://cdn.sanity.io/files/lhbgjyme/production/${id}.${ext}`;
-}
-function imageUrl(asset: any): string {
-  if (!asset?._ref) return '';
-  // formato ref: image-<id>-<dimensioni>-<estensione>
-  const parts = asset._ref.split('-');
-  const ext = parts.pop();
-  const dims = parts.pop();
-  const id = parts.slice(1).join('-');
-  return `https://cdn.sanity.io/images/lhbgjyme/production/${id}-${dims}.${ext}`;
-}
-
 export interface SanityTrack {
   id: string;
   title: string;
   mood: string;
   instrumentation: string;
-  audioUrl: string;
+  src: string;
 }
 
 export interface SanityProject {
@@ -49,25 +31,48 @@ export interface SanityProject {
 }
 
 export async function getTracks(): Promise<SanityTrack[]> {
+  // Nota: chiediamo direttamente "asset->{url}" a Sanity invece di
+  // ricostruire l'URL a mano dal riferimento — Sanity restituisce già
+  // l'URL corretto e pronto all'uso.
   const rows = await client.fetch(`
     *[_type == "track" && published != false] | order(order asc) {
-      _id, title, mood, instrumentation, audioFile { asset-> { _ref } }
+      _id, title, mood, instrumentation, "audioUrl": audioFile.asset->url
     }
   `);
-  return rows.map((r: any) => ({
-    id: r._id,
-    title: r.title,
-    mood: r.mood ?? '',
-    instrumentation: r.instrumentation ?? '',
-    audioUrl: fileUrl(r.audioFile?.asset),
-  })).filter((t: SanityTrack) => t.audioUrl);
+  return rows
+    .map((r: any) => ({
+      id: r._id,
+      title: r.title,
+      mood: r.mood ?? '',
+      instrumentation: r.instrumentation ?? '',
+      src: r.audioUrl ?? '',
+    }))
+    .filter((t: SanityTrack) => t.src);
+}
+
+export interface SanityAward {
+  slug: string;
+  name: string;
+  subtitle?: string;
+  logo: string;
+}
+
+export async function getAwards(): Promise<SanityAward[]> {
+  const rows = await client.fetch(`
+    *[_type == "award" && published != false] | order(order asc) {
+      "slug": slug.current, name, subtitle, "logo": logo.asset->url
+    }
+  `);
+  return rows
+    .map((r: any) => ({ slug: r.slug, name: r.name, subtitle: r.subtitle, logo: r.logo ?? '' }))
+    .filter((a: SanityAward) => a.logo);
 }
 
 export async function getProjects(): Promise<SanityProject[]> {
   const rows = await client.fetch(`
-    *[_type == "project" && published != false] | order(year desc) {
+    *[_type == "project" && published != false] | order(order asc) {
       "slug": slug.current, title, year, director, type, synopsis,
-      poster { asset-> { _ref } }, trailerUrl
+      "poster": poster.asset->url, trailerUrl
     }
   `);
   return rows.map((r: any) => ({
@@ -77,7 +82,7 @@ export async function getProjects(): Promise<SanityProject[]> {
     director: r.director,
     type: r.type,
     synopsis: r.synopsis,
-    poster: imageUrl(r.poster?.asset),
+    poster: r.poster ?? '',
     trailerUrl: r.trailerUrl,
   }));
 }

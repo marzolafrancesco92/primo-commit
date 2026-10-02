@@ -1,7 +1,14 @@
 ---
-import { getTracks, getProjects } from '../lib/sanity';
+import { getTracks, getProjects, getAwards } from '../lib/sanity';
 
 export const prerender = false;
+
+interface Award {
+  slug: string;
+  name: string;
+  subtitle?: string;
+  logo: string;
+}
 
 interface Project {
   slug: string;
@@ -64,12 +71,24 @@ const fallbackTracks: Track[] = [
   { id: 'sans-dieu-ending-titles', title: 'Sans Dieu – Ending Titles', mood: 'Ipnotico, drammatico', instrumentation: 'Voce e soundscape', src: '' },
 ];
 
+const fallbackAwards: Award[] = [
+  { slug: 'venice-iff', name: 'Venice IFF', subtitle: 'Official selection / festival presence', logo: assetUrl('1722509711-66ab698fddfbb-venice-iff-2024-logo-png-300x168.avif') },
+  { slug: 'tampere', name: 'Tampere', subtitle: 'Film Festival', logo: assetUrl('TampereLogo-300x160.avif') },
+  { slug: 'isfmf-2025', name: 'ISFMF', subtitle: 'Nomination · 2025', logo: assetUrl('ISFMF_2025_Top.avif') },
+  { slug: 'apulia-top10', name: 'Apulia', subtitle: 'Top 10 · 2022', logo: assetUrl('TOP-10-Apulia-150x150.png') },
+];
+
 let projects = fallbackProjects;
 let tracks = fallbackTracks;
+let awards = fallbackAwards;
 try {
-  const [t, p] = await Promise.all([getTracks(), getProjects()]);
-  if (t.length) tracks = t;
-  if (p.length) projects = p;
+  const [t, p, a] = await Promise.all([getTracks(), getProjects(), getAwards()]);
+  const sanitySlugs = new Set(p.map((x) => x.slug));
+  const sanityIds = new Set(t.map((x) => x.id));
+  const sanityAwardSlugs = new Set(a.map((x) => x.slug));
+  projects = [...p, ...fallbackProjects.filter((x) => !sanitySlugs.has(x.slug))];
+  tracks = [...t, ...fallbackTracks.filter((x) => !sanityIds.has(x.id))];
+  awards = [...a, ...fallbackAwards.filter((x) => !sanityAwardSlugs.has(x.slug))];
 } catch (e) {
   console.error('Sanity non raggiungibile, uso i dati di riserva', e);
 }
@@ -93,13 +112,8 @@ if (apiBase) {
   }
 }
 
-const years = ['Tutti', '2026', '2025', '2024 e prima'];
-const awards = [
-  ['Tampere Film Festival', 'Official selection'],
-  ['Young Talent Award', 'Finalista · 2024'],
-  ['ISFMF', 'Nomination · 2025'],
-  ['Apulia Soundtrack Awards', 'Top 10 · 2022'],
-];
+const projectTypes = Array.from(new Set(projects.map((project) => project.type).filter(Boolean)));
+const types = ['Tutti', ...projectTypes];
 
 const socials = [
   ['Instagram', 'https://www.instagram.com/francesco_marzola/'],
@@ -129,24 +143,24 @@ const socials = [
   <body>
     <div class="grain" aria-hidden="true"></div>
 
+    <nav class="nav shell" aria-label="Navigazione principale">
+      <a class="brand" href="#top" aria-label="Francesco Marzola, home">
+        <span class="brand__mark">FM</span>
+        <span>Francesco Marzola</span>
+      </a>
+      <div class="nav__links">
+        <a href="#musica">Musica</a>
+        <a href="#progetti">Progetti</a>
+        <a href="#chi-sono">Chi sono</a>
+        <a href="#contatti">Contatti</a>
+      </div>
+      <a class="nav__cta" href="#contatti">Parliamo</a>
+    </nav>
+
     <header class="hero" id="top" style={`--hero-image: url("${assetUrl('Francesco_conducting110.jpg')}")`}>
       <div class="hero__orb hero__orb--one" aria-hidden="true"></div>
       <div class="hero__orb hero__orb--two" aria-hidden="true"></div>
       <div class="hero__grid" aria-hidden="true"></div>
-
-      <nav class="nav shell" aria-label="Navigazione principale">
-        <a class="brand" href="#top" aria-label="Francesco Marzola, home">
-          <span class="brand__mark">FM</span>
-          <span>Francesco Marzola</span>
-        </a>
-        <div class="nav__links">
-          <a href="#musica">Musica</a>
-          <a href="#progetti">Progetti</a>
-          <a href="#chi-sono">Chi sono</a>
-          <a href="#contatti">Contatti</a>
-        </div>
-        <a class="nav__cta" href="#contatti">Parliamo</a>
-      </nav>
 
       <div class="hero__content shell">
         <p class="eyebrow reveal">COMPOSITORE · FILM · GAMES</p>
@@ -232,10 +246,10 @@ const socials = [
               <h2>Storie che<br /><em style="color: #b6413a !important;">suonano</em></h2>
             </div>
             <div class="filter-wrap">
-              <span class="filter-label">Filtra per anno</span>
-              <div class="filters" role="group" aria-label="Filtra progetti per anno">
-                {years.map((year, index) => (
-                  <button type="button" class:list={['filter', index === 0 && 'is-selected']} data-year={year}>{year}</button>
+              <span class="filter-label">Filtra per tipo</span>
+              <div class="filters" role="group" aria-label="Filtra progetti per tipo">
+                {types.map((type, index) => (
+                  <button type="button" class:list={['filter', index === 0 && 'is-selected']} data-type={type}>{type}</button>
                 ))}
               </div>
             </div>
@@ -243,7 +257,7 @@ const socials = [
 
           <div class="projects-grid" id="projects-grid">
             {projects.map((project) => (
-              <article class="project reveal-on-scroll" data-project-year={project.year}>
+              <article class="project reveal-on-scroll" data-project-type={project.type ?? ''}>
                 <a href={project.trailerUrl ?? '#contatti'} class="project__visual" aria-label={`Apri ${project.title}`}>
                   <img src={project.poster || assetUrl('Centipede-poster-212x300.jpeg')} alt={`Locandina di ${project.title}`} loading="lazy" />
                   <span class="project__veil"></span>
@@ -254,7 +268,10 @@ const socials = [
                     <h3>{project.title}</h3>
                     <p>{project.director ?? project.type ?? 'Original score'}</p>
                   </div>
-                  <span class="project__year">{project.year}</span>
+                  <div class="project__badges">
+                    {project.type && <span class="project__type">{project.type}</span>}
+                    <span class="project__year">{project.year}</span>
+                  </div>
                 </div>
               </article>
             ))}
@@ -301,22 +318,12 @@ const socials = [
           </div>
 
           <div class="awards-grid">
-            <div class="award reveal-on-scroll">
-              <img src={assetUrl('1722509711-66ab698fddfbb-venice-iff-2024-logo-png-300x168.avif')} alt="Venice International Film Festival logo" loading="lazy" />
-              <div><strong>Venice IFF</strong><span>Official selection / festival presence</span></div>
-            </div>
-            <div class="award reveal-on-scroll">
-              <img src={assetUrl('TampereLogo-300x160.avif')} alt="Tampere Film Festival logo" loading="lazy" />
-              <div><strong>Tampere</strong><span>Film Festival</span></div>
-            </div>
-            <div class="award reveal-on-scroll">
-              <img src={assetUrl('ISFMF_2025_Top.avif')} alt="ISFMF 2025 recognition" loading="lazy" />
-              <div><strong>ISFMF</strong><span>Nomination · 2025</span></div>
-            </div>
-            <div class="award reveal-on-scroll">
-              <img src={assetUrl('TOP-10-Apulia-150x150.png')} alt="Top 10 Apulia Soundtrack Awards" loading="lazy" />
-              <div><strong>Apulia</strong><span>Top 10 · 2022</span></div>
-            </div>
+            {awards.map((award) => (
+              <div class="award reveal-on-scroll">
+                <img src={award.logo} alt={`${award.name} logo`} loading="lazy" />
+                <div><strong>{award.name}</strong>{award.subtitle && <span>{award.subtitle}</span>}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -643,18 +650,14 @@ const socials = [
       // ------------------------------
       const projectCards = $$('.project');
       const filterButtons = $$('.filter');
-      const matchesYear = (projectYear, filter) => {
-        if (filter === 'Tutti') return true;
-        if (filter === '2024 e prima') return projectYear <= 2024;
-        return Number(projectYear) === Number(filter);
-      };
+      const matchesType = (projectType, filter) => filter === 'Tutti' || projectType === filter;
 
       filterButtons.forEach((button) => {
         button.addEventListener('click', () => {
-          const filter = button.dataset.year;
+          const filter = button.dataset.type;
           filterButtons.forEach((b) => b.classList.toggle('is-selected', b === button));
           projectCards.forEach((card) => {
-            const show = matchesYear(card.dataset.projectYear, filter);
+            const show = matchesType(card.dataset.projectType, filter);
             card.hidden = !show;
           });
         });
@@ -759,7 +762,27 @@ const socials = [
       .hero__orb--one { top: 14%; right: -9%; background: #b6dd96; }
       .hero__orb--two { top: 45%; left: -18%; background: #437a5c; width: 28vw; }
 
-      .nav { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 28px; padding-top: 24px; z-index: 2; }
+      .nav {
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 28px;
+        z-index: 50;
+        width: min(1180px, calc(100% - 32px));
+        padding: 13px 22px;
+        padding-top: calc(13px + env(safe-area-inset-top, 0px));
+        border-radius: 999px;
+        background: rgba(11, 18, 14, .62);
+        backdrop-filter: blur(14px) saturate(140%);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        border: 1px solid rgba(237, 244, 238, .12);
+        box-shadow: 0 18px 40px rgba(6, 12, 8, .28);
+        color: #edf4ee;
+      }
       .brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; font: 600 18px 'Cormorant Garamond', serif; letter-spacing: .01em; }
       .brand__mark { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 1px solid rgba(236, 244, 238, .35); border-radius: 50%; font: 600 12px Raleway, sans-serif; letter-spacing: .08em; }
       .nav__links { display: flex; gap: 24px; margin-left: auto; }
@@ -841,7 +864,9 @@ const socials = [
       .project__meta-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-top: 12px; }
       .project h3 { font-size: 24px; line-height: .95; }
       .project p { margin: 5px 0 0; font-size: 11px; color: var(--muted); }
-      .project__year { color: #839088; font: 10px ui-monospace, monospace; padding-top: 3px; }
+      .project__badges { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; padding-top: 3px; }
+      .project__year { color: #839088; font: 10px ui-monospace, monospace; }
+      .project__type { color: var(--green); background: rgba(41, 85, 63, .1); border-radius: 999px; padding: 3px 9px; font: 600 9px Raleway, sans-serif; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
 
       .about { display: grid; grid-template-columns: minmax(280px, .8fr) minmax(0, 1.2fr); gap: 90px; align-items: center; }
       .about__media { position: relative; max-width: 430px; }
@@ -913,7 +938,8 @@ const socials = [
         .nav__links { display: none; }
         .nav__cta { margin-left: auto; }
         .hero { min-height: 90svh; }
-        .hero__content { padding: 72px 0 100px; }
+        .hero__content { padding: 88px 0 100px; }
+        .nav { padding: 11px 16px; }
         .hero__title { font-size: clamp(64px, 16vw, 100px); }
         .hero__lede { font-size: 14px; max-width: 42ch; }
         .hero__actions { flex-direction: column; align-items: stretch; }
