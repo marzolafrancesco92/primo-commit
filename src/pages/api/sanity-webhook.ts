@@ -15,8 +15,10 @@
 import type { APIRoute } from 'astro';
 import { createClient } from '@sanity/client';
 import { translateFields } from '../../lib/translate';
-// 1. Nuovo import richiesto da Astro v6 / Cloudflare Workers per le variabili d'ambiente
+// Import richiesto da Astro v6 / Cloudflare Workers per le variabili d'ambiente
 import { env } from 'cloudflare:workers';
+// Importiamo il validatore ufficiale di Sanity per la firma digitale
+import { isValidSignature } from '@sanity/webhook';
 
 export const prerender = false;
 
@@ -26,25 +28,6 @@ const FIELDS_BY_TYPE: Record<string, string[]> = {
   award: ['name', 'subtitle'],
 };
 
-async function verifySignature(request: Request, secret: string, body: string): Promise<boolean> {
-  const signatureHeader = request.headers.get('sanity-webhook-signature');
-  if (!signatureHeader) return false;
-  // Sanity firma con HMAC-SHA256, formato "t=<timestamp>,v1=<firma>"
-  const parts = Object.fromEntries(signatureHeader.split(',').map((p) => p.split('=')));
-  const signedContent = `${parts.t}.${body}`;
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const signatureBuffer = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(signedContent));
-  const expected = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+\$/, '');
-  return expected === parts.v1;
-}
-
 function errorResponse(step: string, error: any, status = 500) {
   console.error(`Errore webhook (${step}):`, error);
   return new Response(
@@ -52,8 +35,6 @@ function errorResponse(step: string, error: any, status = 500) {
     { status, headers: { 'Content-Type': 'application/json' } }
   );
 }
-
-// ... codice iniziale invariato (import, campi, ecc.)
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -72,14 +53,14 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // 1. Cloniamo la richiesta per assicurarci che il flusso binario rimanga intatto
+    // 1. Cloniamo la richiesta per assicurarci che il flusso binario rimanga intatto su Cloudflare Workers
     const clonedRequest = request.clone();
     
-    // 2. Estraiamo il testo grezzo (raw text) direttamente dalla richiesta clonata
+    // 2. Estraiamo il testo grezzo e la firma (UNA SOLA VOLTA)
     const rawBody = await clonedRequest.text();
     const signature = request.headers.get('sanity-webhook-signature') || '';
 
-    // 3. Eseguiamo la validazione ufficiale
+    // 3. Eseguiamo la validazione ufficiale con la libreria @sanity/webhook
     let valid = false;
     try {
       valid = await isValidSignature(rawBody, signature, webhookSecret);
@@ -94,29 +75,17 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // 4. Se la firma è valida, analizziamo il JSON (usando la stringa rawBody già letta)
+    // 4. Analizziamo il JSON dal rawBody
     const payload = JSON.parse(rawBody);
     const docId: string | undefined = payload._id;
     const docType: string | undefined = payload._type;
 
-    // ... tutto il resto del codice per Sanity e Anthropic rimane invariato
-
-  
-    try {
-      valid = await verifySignature(request, webhookSecret, rawBody);
-    } catch (error) {
-      return errorResponse('verify-signature', error);
-    }
-    if (!valid) return new Response(JSON.stringify({ ok: false, step: 'verify-signature', error: 'Firma non valida' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
-
-    const payload = JSON.parse(rawBody);
-    const docId: string | undefined = payload._id;
-    const docType: string | undefined = payload._type;
-
+    // 5. Controlliamo se il tipo di documento deve essere tradotto
     if (!docId || !docType || !FIELDS_BY_TYPE[docType]) {
       return new Response(JSON.stringify({ ok: true, skipped: true, docType }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
+    // 6. Inizializziamo il client Sanity per la scrittura
     const client = createClient({
       projectId: 'lhbgjyme',
       dataset: 'production',
@@ -125,15 +94,18 @@ export const POST: APIRoute = async ({ request }) => {
       useCdn: false,
     });
 
+    // 7. Recuperiamo il documento originale
     const doc = await client.getDocument(docId);
     if (!doc) return new Response(JSON.stringify({ ok: true, skipped: true, reason: 'documento non trovato' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
+    // 8. Mappiamo i campi da tradurre
     const fieldsToTranslate = FIELDS_BY_TYPE[docType];
     const sourceFields: Record<string, string> = {};
     for (const field of fieldsToTranslate) {
       if (typeof (doc as any)[field] === 'string') sourceFields[field] = (doc as any)[field];
     }
 
+    // 9. Richiediamo le traduzioni a Claude (Anthropic)
     let en: Record<string, string>, bg: Record<string, string>;
     try {
       [en, bg] = await Promise.all([
@@ -144,6 +116,7 @@ export const POST: APIRoute = async ({ request }) => {
       return errorResponse('translate', error);
     }
 
+    // 10. Salviamo le traduzioni all'interno del documento di Sanity
     try {
       await client.patch(docId).set({ translations: { en, bg } }).commit({ autoGenerateArrayKeys: true });
     } catch (error) {
