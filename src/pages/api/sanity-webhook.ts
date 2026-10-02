@@ -43,62 +43,88 @@ async function verifySignature(request: Request, secret: string, body: string): 
   return expected === parts.v1;
 }
 
+function errorResponse(step: string, error: any, status = 500) {
+  console.error(`Errore webhook (${step}):`, error);
+  return new Response(
+    JSON.stringify({ ok: false, step, error: error?.message ?? String(error) }),
+    { status, headers: { 'Content-Type': 'application/json' } }
+  );
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
-  const env = (locals as any)?.runtime?.env ?? process.env;
-  const webhookSecret = env.SANITY_WEBHOOK_SECRET;
-  const writeToken = env.SANITY_WRITE_TOKEN;
-  const anthropicKey = env.ANTHROPIC_API_KEY;
-
-  const rawBody = await request.text();
-
-  if (webhookSecret) {
-    const valid = await verifySignature(request, webhookSecret, rawBody);
-    if (!valid) return new Response('Firma non valida', { status: 401 });
-  }
-
-  const payload = JSON.parse(rawBody);
-  const docId: string | undefined = payload._id;
-  const docType: string | undefined = payload._type;
-
-  if (!docId || !docType || !FIELDS_BY_TYPE[docType]) {
-    return new Response('Tipo di documento non gestito, ignorato', { status: 200 });
-  }
-
-  const client = createClient({
-    projectId: 'lhbgjyme',
-    dataset: 'production',
-    apiVersion: '2024-01-01',
-    token: writeToken,
-    useCdn: false,
-  });
-
-  // Rileggiamo il documento completo (il payload del webhook può essere parziale)
-  const doc = await client.getDocument(docId);
-  if (!doc) return new Response('Documento non trovato', { status: 200 });
-
-  const fieldsToTranslate = FIELDS_BY_TYPE[docType];
-  const sourceFields: Record<string, string> = {};
-  for (const field of fieldsToTranslate) {
-    if (typeof (doc as any)[field] === 'string') sourceFields[field] = (doc as any)[field];
-  }
-
   try {
-    const [en, bg] = await Promise.all([
-      translateFields(anthropicKey, sourceFields, 'en'),
-      translateFields(anthropicKey, sourceFields, 'bg'),
-    ]);
+    const env = (locals as any)?.runtime?.env ?? {};
+    const webhookSecret = env.SANITY_WEBHOOK_SECRET;
+    const writeToken = env.SANITY_WRITE_TOKEN;
+    const anthropicKey = env.ANTHROPIC_API_KEY;
 
-    await client.patch(docId).set({ translations: { en, bg } }).commit({ autoGenerateArrayKeys: true });
+    if (!webhookSecret || !writeToken || !anthropicKey) {
+      return errorResponse(
+        'env',
+        `Variabile mancante: ${[
+          !webhookSecret && 'SANITY_WEBHOOK_SECRET',
+          !writeToken && 'SANITY_WRITE_TOKEN',
+          !anthropicKey && 'ANTHROPIC_API_KEY',
+        ].filter(Boolean).join(', ')}`
+      );
+    }
+
+    const rawBody = await request.text();
+
+    let valid = false;
+    try {
+      valid = await verifySignature(request, webhookSecret, rawBody);
+    } catch (error) {
+      return errorResponse('verify-signature', error);
+    }
+    if (!valid) return new Response(JSON.stringify({ ok: false, step: 'verify-signature', error: 'Firma non valida' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+
+    const payload = JSON.parse(rawBody);
+    const docId: string | undefined = payload._id;
+    const docType: string | undefined = payload._type;
+
+    if (!docId || !docType || !FIELDS_BY_TYPE[docType]) {
+      return new Response(JSON.stringify({ ok: true, skipped: true, docType }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    const client = createClient({
+      projectId: 'lhbgjyme',
+      dataset: 'production',
+      apiVersion: '2024-01-01',
+      token: writeToken,
+      useCdn: false,
+    });
+
+    const doc = await client.getDocument(docId);
+    if (!doc) return new Response(JSON.stringify({ ok: true, skipped: true, reason: 'documento non trovato' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+    const fieldsToTranslate = FIELDS_BY_TYPE[docType];
+    const sourceFields: Record<string, string> = {};
+    for (const field of fieldsToTranslate) {
+      if (typeof (doc as any)[field] === 'string') sourceFields[field] = (doc as any)[field];
+    }
+
+    let en: Record<string, string>, bg: Record<string, string>;
+    try {
+      [en, bg] = await Promise.all([
+        translateFields(anthropicKey, sourceFields, 'en'),
+        translateFields(anthropicKey, sourceFields, 'bg'),
+      ]);
+    } catch (error) {
+      return errorResponse('translate', error);
+    }
+
+    try {
+      await client.patch(docId).set({ translations: { en, bg } }).commit({ autoGenerateArrayKeys: true });
+    } catch (error) {
+      return errorResponse('sanity-patch', error);
+    }
 
     return new Response(JSON.stringify({ ok: true, translated: Object.keys(sourceFields) }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  } catch (error: any) {
-    console.error('Errore traduzione webhook:', error);
-    return new Response(JSON.stringify({ ok: false, error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  } catch (error) {
+    return errorResponse('top-level', error);
   }
 };
