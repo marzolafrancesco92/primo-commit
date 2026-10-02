@@ -53,16 +53,13 @@ function errorResponse(step: string, error: any, status = 500) {
   );
 }
 
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request }) => { // rimosso 'locals' che non serve più per le env
   try {
-    // Controllo a cascata: cerca prima nel nuovo modulo cloudflare:workers,
-    // poi nei vari posizionamenti possibili di locals forniti dall'adapter v6
-    const cfEnv = (env as any) || {};
-    const localsCf = (locals as any)?.cloudflare?.env || (locals as any)?.runtime?.env || {};
-
-    const webhookSecret = cfEnv.SANITY_WEBHOOK_SECRET || localsCf.SANITY_WEBHOOK_SECRET;
-    const writeToken = cfEnv.SANITY_WRITE_TOKEN || localsCf.SANITY_WRITE_TOKEN;
-    const anthropicKey = cfEnv.ANTHROPIC_API_KEY || localsCf.ANTHROPIC_API_KEY;
+    // In Astro v6 + Cloudflare, 'env' importato da 'cloudflare:workers' 
+    // contiene già tutte le variabili d'ambiente del tuo progetto.
+    const webhookSecret = env.SANITY_WEBHOOK_SECRET;
+    const writeToken = env.SANITY_WRITE_TOKEN;
+    const anthropicKey = env.ANTHROPIC_API_KEY;
 
     if (!webhookSecret || !writeToken || !anthropicKey) {
       return errorResponse(
@@ -74,6 +71,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ].filter(Boolean).join(', ')}`
       );
     }
+    
+    // ... resto del tuo codice invariato
+
    
 
     const rawBody = await request.text();
