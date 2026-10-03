@@ -114,6 +114,10 @@ if (apiBase) {
 
 const projectTypes = Array.from(new Set(projects.map((project) => project.type).filter(Boolean)));
 const types = ['Tutti', ...projectTypes];
+const typeCounts: Record<string, number> = { Tutti: projects.length };
+for (const type of projectTypes) {
+  typeCounts[type] = projects.filter((p) => p.type === type).length;
+}
 
 const socials = [
   ['Instagram', 'https://www.instagram.com/francesco_marzola/'],
@@ -128,6 +132,8 @@ const socials = [
 <html lang="it">
   <head>
     <meta charset="utf-8" />
+
+    <link rel="icon" type="image/png" href="/images/projects/logo-square.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0b120e" />
     <title>Francesco Marzola — Composer for Film & Games</title>
@@ -243,13 +249,13 @@ const socials = [
           <div class="section__head section__head--projects reveal-on-scroll">
             <div>
               <p class="eyebrow">02 · SELECTED WORK</p>
-              <h2>Storie che<br /><em style="color: #b6413a !important;">suonano</em></h2>
+              <h2>Progetti a cui<br /><em style="color: #b6413a !important;">ho contribuito</em></h2>
             </div>
             <div class="filter-wrap">
               <span class="filter-label">Filtra per tipo</span>
               <div class="filters" role="group" aria-label="Filtra progetti per tipo">
                 {types.map((type, index) => (
-                  <button type="button" class:list={['filter', index === 0 && 'is-selected']} data-type={type}>{type}</button>
+                  <button type="button" class:list={['filter', index === 0 && 'is-selected']} data-type={type}>{type} <span class="filter__count">({typeCounts[type]})</span></button>
                 ))}
               </div>
             </div>
@@ -275,6 +281,9 @@ const socials = [
                 </div>
               </article>
             ))}
+          </div>
+          <div class="projects-more" id="projects-more" hidden>
+            <button type="button" class="button button--ghost" id="projects-more-btn">Mostra altri <span id="projects-more-count"></span></button>
           </div>
         </div>
       </section>
@@ -366,7 +375,6 @@ const socials = [
             </label>
             <input type="hidden" name="source" value="website" />
             <button class="button button--solid button--submit" type="submit">Invia il progetto <span>↗</span></button>
-            <p class="form-note">L’endpoint <code>/api/contact</code> può creare la lead nel tuo backend/CRM.</p>
           </form>
         </div>
       </section>
@@ -655,22 +663,77 @@ const socials = [
       resizeCanvas();
 
       // ------------------------------
-      // Project filters
+      // Project filters + "mostra altri" progressivo
       // ------------------------------
       const projectCards = $$('.project');
       const filterButtons = $$('.filter');
+      const projectsGrid = $('#projects-grid');
+      const moreWrap = $('#projects-more');
+      const moreBtn = $('#projects-more-btn');
+      const moreCount = $('#projects-more-count');
+      const INITIAL_VISIBLE = 12;
       const matchesType = (projectType, filter) => filter === 'Tutti' || projectType === filter;
+
+      let currentFilter = 'Tutti';
+      let expanded = false;
+
+      const currentColumnCount = () => {
+        const value = getComputedStyle(projectsGrid).gridTemplateColumns;
+        return value.split(' ').filter(Boolean).length || 1;
+      };
+
+      const renderVisibility = () => {
+        const matching = projectCards.filter((card) => matchesType(card.dataset.projectType, currentFilter));
+        const nonMatching = projectCards.filter((card) => !matchesType(card.dataset.projectType, currentFilter));
+
+        nonMatching.forEach((card) => { card.hidden = true; card.classList.remove('is-teaser'); });
+
+        const teaserSize = expanded ? 0 : currentColumnCount();
+        const hiddenCount = Math.max(0, matching.length - INITIAL_VISIBLE - teaserSize);
+
+        matching.forEach((card, i) => {
+          if (expanded || i < INITIAL_VISIBLE) {
+            card.hidden = false;
+            card.classList.remove('is-teaser');
+          } else if (i < INITIAL_VISIBLE + teaserSize) {
+            card.hidden = false;
+            card.classList.add('is-teaser');
+          } else {
+            card.hidden = true;
+            card.classList.remove('is-teaser');
+          }
+        });
+
+        const notFullyVisible = matching.length - INITIAL_VISIBLE;
+        if (!expanded && notFullyVisible > 0) {
+          moreWrap.hidden = false;
+          moreCount.textContent = `(${notFullyVisible})`;
+        } else {
+          moreWrap.hidden = true;
+        }
+      };
 
       filterButtons.forEach((button) => {
         button.addEventListener('click', () => {
-          const filter = button.dataset.type;
+          currentFilter = button.dataset.type;
+          expanded = false;
           filterButtons.forEach((b) => b.classList.toggle('is-selected', b === button));
-          projectCards.forEach((card) => {
-            const show = matchesType(card.dataset.projectType, filter);
-            card.hidden = !show;
-          });
+          renderVisibility();
         });
       });
+
+      moreBtn.addEventListener('click', () => {
+        expanded = true;
+        renderVisibility();
+      });
+
+      let resizeTimer;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(renderVisibility, 150);
+      });
+
+      renderVisibility();
 
       // ------------------------------
       // Magnetic CTA effect
@@ -860,9 +923,17 @@ const socials = [
       .filters { display: flex; flex-wrap: wrap; gap: 7px; }
       .filter { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 999px; padding: 8px 13px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all .18s ease; }
       .filter.is-selected, .filter:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+      .filter__count { opacity: .65; font-weight: 600; }
       .projects-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 34px 18px; }
       .project { min-width: 0; }
       .project[hidden] { display: none; }
+      .project.is-teaser { filter: blur(7px); pointer-events: none; user-select: none; }
+      .project.is-teaser .project__visual { cursor: default; }
+      .projects-more { display: flex; justify-content: center; margin-top: -58px; position: relative; z-index: 3; pointer-events: none; }
+      .projects-more .button { pointer-events: auto; }
+      .projects-more[hidden] { display: none; }
+      .projects-more .button { background: var(--ink); color: var(--paper); border-color: var(--ink); box-shadow: 0 14px 34px rgba(18, 34, 25, .22); }
+      .projects-more .button:hover { background: var(--green); border-color: var(--green); }
       .project__visual { position: relative; display: block; aspect-ratio: 2 / 2.72; overflow: hidden; border-radius: 5px; background: #ccd4cd; text-decoration: none; }
       .project__visual img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(.72) contrast(.97); transform: scale(1.001); transition: transform .75s cubic-bezier(.2,.75,.2,1), filter .4s ease; }
       .project__veil { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(4, 12, 8, .62)); opacity: .6; transition: opacity .35s ease; }
@@ -972,7 +1043,9 @@ const socials = [
       }
 
       @media (max-width: 480px) {
-        .projects-grid { grid-template-columns: 1fr; }
+        .projects-grid { grid-template-columns: repeat(2, 1fr); gap: 22px 10px; }
+        .project h3 { font-size: 17px; }
+        .project p { font-size: 10px; }
         .hero__title { font-size: 65px; }
         .play { width: 54px; height: 54px; }
         .player h3 { font-size: 38px; }
