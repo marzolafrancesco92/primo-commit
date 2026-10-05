@@ -59,17 +59,10 @@ const fallbackProjects: Project[] = [
   { slug: 'centipede', title: 'Centipede', year: 2022, director: 'Regia Vera Ivanova', type: 'Cortometraggio', poster: assetUrl('Centipede-poster-212x300.jpeg') },
 ];
 
-const fallbackTracks: Track[] = [
-  { id: 'wished-for-a-hug', title: 'Wished for a hug', mood: 'Emozionale, minimale', instrumentation: 'Piano e pluck', src: '' },
-  { id: 'abysmal-distance', title: 'Abysmal Distance', mood: 'Drammatico', instrumentation: 'Archi, registrazione reale', src: '' },
-  { id: 'give-me-back-it', title: 'Give me back it', mood: 'Azione, battaglia', instrumentation: 'Archi (MIDI)', src: '' },
-  { id: 'a-journey-of-love', title: 'A Journey of Love', mood: 'Romantico', instrumentation: 'Piano, viola e cello (MIDI)', src: '' },
- { id: 'intense-connection', title: 'Intense Connection', mood: 'Sci-fi drama', instrumentation: 'Orchestra reale', src: '/audio/IntenseConnection-14.mp3' },
-  { id: 'foresight', title: 'Foresight – Main Theme', mood: 'Epico, avventura', instrumentation: 'Grande orchestra reale', src: '' },
-  { id: 'innocent-ugly-truth', title: 'Innocent Ugly Truth', mood: 'Horror intimo', instrumentation: 'Piano e archi (MIDI)', src: '' },
-  { id: 'primitive-chase', title: 'Primitive Chase', mood: 'Horror, inseguimento', instrumentation: 'Registrazione reale', src: '' },
-  { id: 'sans-dieu-ending-titles', title: 'Sans Dieu – Ending Titles', mood: 'Ipnotico, drammatico', instrumentation: 'Voce e soundscape', src: '' },
-];
+// I brani vivono ormai solo in Sanity: niente più placeholder qui, per
+// evitare doppioni quando aggiungi un brano in Sanity con un titolo già
+// presente in questa lista.
+const fallbackTracks: Track[] = [];
 
 const fallbackAwards: Award[] = [
   { slug: 'venice-iff', name: 'Venice IFF', subtitle: 'Official selection / festival presence', logo: assetUrl('1722509711-66ab698fddfbb-venice-iff-2024-logo-png-300x168.avif') },
@@ -132,8 +125,6 @@ const socials = [
 <html lang="it">
   <head>
     <meta charset="utf-8" />
-
-    <link rel="icon" type="image/png" href="/images/projects/logo-square.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0b120e" />
     <title>Francesco Marzola — Composer for Film & Games</title>
@@ -249,7 +240,7 @@ const socials = [
           <div class="section__head section__head--projects reveal-on-scroll">
             <div>
               <p class="eyebrow">02 · SELECTED WORK</p>
-              <h2>Progetti a cui<br /><em style="color: #b6413a !important;">ho contribuito</em></h2>
+              <h2>Storie che<br /><em style="color: #b6413a !important;">suonano</em></h2>
             </div>
             <div class="filter-wrap">
               <span class="filter-label">Filtra per tipo</span>
