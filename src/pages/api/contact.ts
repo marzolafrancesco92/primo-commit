@@ -15,8 +15,8 @@ export const prerender = false;
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const env = (locals as any)?.runtime?.env ?? {};
-    const portalId = env.149475896;
-    const formGuid = env.fa9a4664-6627-495f-9c5c-8b654ef6faac;
+    const portalId = env.['149475896'];
+    const formGuid = env.['fa9a4664-6627-495f-9c5c-8b654ef6faac'];
 
     if (!portalId || !formGuid) {
       return new Response(JSON.stringify({ ok: false, error: 'Configurazione HubSpot mancante' }), {
