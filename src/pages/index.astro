@@ -118,7 +118,9 @@ const socials = [
   ['IMDb', 'https://www.imdb.com/name/nm13494062/'],
   ['Spotify', 'https://open.spotify.com/artist/19x9qN4lYMAPYatRJ1Nm0P'],
   ['YouTube', 'https://www.youtube.com/channel/UCf5Qaoq04gfPUd8-Goy0RUw'],
-];
+]
+const inviato = Astro.url.searchParams.get('inviato') === '1';
+;
 ---
 
 <!doctype html>
@@ -341,7 +343,14 @@ const socials = [
             </p>
             <a class="mail" href="mailto:francesco@marzolamusic.com">francesco@marzolamusic.com ↗</a>
           </div>
-
+          {inviato ? (
+           <div class="contact-thanks reveal-on-scroll" role="status">
+           <p class="eyebrow">MESSAGGIO RICEVUTO</p>
+           <h3>Grazie, ti rispondo presto.</h3>
+           <p>Ho ricevuto la tua richiesta e ti scrivo all'indirizzo che mi hai indicato.</p>
+           <a href="/#contatti">Invia un altro messaggio</a>
+           </div>
+           ) : (
           <form class="contact-form reveal-on-scroll" action="/api/contact" method="post">
             <label>
               <span>Nome</span>
@@ -368,6 +377,7 @@ const socials = [
             <input type="hidden" name="source" value="website" />
             <button class="button button--solid button--submit" type="submit">Invia il progetto <span>↗</span></button>
           </form>
+         )}
         </div>
       </section>
     </main>
@@ -974,6 +984,12 @@ const socials = [
       .contact-form input:focus, .contact-form textarea:focus, .contact-form select:focus { border-bottom-color: var(--ink); }
       .button--submit { border: 0; cursor: pointer; justify-self: start; }
       .form-note { margin: -2px 0 0; color: #728178; font-size: 10px; }
+
+.contact-thanks { padding: 28px; border: 1px solid rgba(18, 34, 25, .15); background: rgba(248,250,246,.55); border-radius: 5px; }
+.contact-thanks .eyebrow { color: var(--green); }
+.contact-thanks h3 { font-size: clamp(32px, 4vw, 44px); line-height: .95; letter-spacing: -.02em; }
+.contact-thanks p:not(.eyebrow) { margin: 14px 0 0; color: #5f7265; font-size: 14px; }
+.contact-thanks a { display: inline-block; margin-top: 20px; font: 600 14px Raleway, sans-serif; text-underline-offset: 5px; }
 
       .footer { padding: 52px 0 26px; background: var(--dark); color: #e7eee8; }
       .brand--footer { font-size: 17px; }
