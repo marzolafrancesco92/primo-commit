@@ -1,4 +1,3 @@
-ts
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 
