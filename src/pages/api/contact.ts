@@ -26,10 +26,11 @@ export const POST: APIRoute = async ({ request }) => {
 
     const formData = await request.formData();
 
-    const name = formData.get('name')?.toString() ?? '';
-    const email = formData.get('email')?.toString() ?? '';
-    const projectType = formData.get('project_type')?.toString() ?? '';
-    const message = formData.get('message')?.toString() ?? '';
+    const name = formData.get('name')?.toString() || '';
+    const email = formData.get('email')?.toString() || '';
+    const projectType =
+      formData.get('project_type')?.toString() || '';
+    const message = formData.get('message')?.toString() || '';
 
     if (!email) {
       return new Response(
@@ -47,8 +48,10 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const hubspotUrl =
-      `https://api.hsforms.com/submissions/v3/integration/submit/` +
-      `${portalId}/${formGuid}`;
+      'https://api.hsforms.com/submissions/v3/integration/submit/' +
+      portalId +
+      '/' +
+      formGuid;
 
     const hubspotResponse = await fetch(hubspotUrl, {
       method: 'POST',
@@ -76,7 +79,7 @@ export const POST: APIRoute = async ({ request }) => {
         ],
         context: {
           pageUri:
-            request.headers.get('referer') ??
+            request.headers.get('referer') ||
             'https://www.marzolamusic.com',
           pageName: 'Marzola Music — Contatti',
         },
@@ -84,9 +87,9 @@ export const POST: APIRoute = async ({ request }) => {
     });
 
     if (!hubspotResponse.ok) {
-      const errText = await hubspotResponse.text();
+      const errorText = await hubspotResponse.text();
 
-      console.error('Errore invio a HubSpot:', errText);
+      console.error('Errore invio a HubSpot:', errorText);
 
       return new Response(
         JSON.stringify({
@@ -108,7 +111,7 @@ export const POST: APIRoute = async ({ request }) => {
         Location: '/?inviato=1#contatti',
       },
     });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Errore contact form:', error);
 
     return new Response(
