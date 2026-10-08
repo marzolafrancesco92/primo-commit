@@ -1,14 +1,4 @@
 ```ts
-// src/pages/api/contact.ts
-//
-// Riceve il form di contatto del sito e lo invia al Form di HubSpot.
-// HubSpot si occupa da solo di creare/aggiornare il contatto e di
-// mandare la notifica email — qui ci limitiamo a inoltrare i dati.
-//
-// Variabili d'ambiente necessarie (Cloudflare):
-//   HUBSPOT_PORTAL_ID  -> il Portal ID del tuo account HubSpot
-//   HUBSPOT_FORM_GUID  -> l'ID del form creato in HubSpot
-
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 
@@ -27,7 +17,9 @@ export const POST: APIRoute = async ({ request }) => {
         }),
         {
           status: 500,
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }
       );
     }
@@ -47,34 +39,49 @@ export const POST: APIRoute = async ({ request }) => {
         }),
         {
           status: 400,
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }
       );
     }
 
-    const hubspotResponse = await fetch(
-      `https://api.hsforms.com/submissions/v3/integration/submit/${portalId}/${formGuid}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fields: [
-            { name: 'firstname', value: name },
-            { name: 'email', value: email },
-            { name: 'project_type', value: projectType },
-            { name: 'message', value: message },
-          ],
-          context: {
-            pageUri:
-              request.headers.get('referer') ??
-              'https://www.marzolamusic.com',
-            pageName: 'Marzola Music — Contatti',
+    const hubspotUrl =
+      `https://api.hsforms.com/submissions/v3/integration/submit/` +
+      `${portalId}/${formGuid}`;
+
+    const hubspotResponse = await fetch(hubspotUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fields: [
+          {
+            name: 'firstname',
+            value: name,
           },
-        }),
-      }
-    );
+          {
+            name: 'email',
+            value: email,
+          },
+          {
+            name: 'project_type',
+            value: projectType,
+          },
+          {
+            name: 'message',
+            value: message,
+          },
+        ],
+        context: {
+          pageUri:
+            request.headers.get('referer') ??
+            'https://www.marzolamusic.com',
+          pageName: 'Marzola Music — Contatti',
+        },
+      }),
+    });
 
     if (!hubspotResponse.ok) {
       const errText = await hubspotResponse.text();
@@ -88,7 +95,9 @@ export const POST: APIRoute = async ({ request }) => {
         }),
         {
           status: 502,
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }
       );
     }
@@ -105,11 +114,16 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(
       JSON.stringify({
         ok: false,
-        error: error instanceof Error ? error.message : 'Errore interno',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Errore interno',
       }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
       }
     );
   }
